@@ -2,7 +2,23 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-**Development package:** source is hosted in [appbasehq/appbase-swift](https://github.com/appbasehq/appbase-swift). No versioned Swift release has been published yet; use the local `sdks/swift` package in Xcode or a Swift Package Manager path dependency for development. A source upload is not a stable release. Device, App Store privacy-report and real Apple/RevenueCat sandbox acceptance are separate release gates; a host test or simulator build does not establish them.
+## Install 0.1.0
+
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.1.0**. Add the `AppbaseAnalytics` product to your app target.
+
+For a Swift package, add this dependency and reference its library product from your target:
+
+```swift
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.1.0")
+```
+
+```swift
+.product(name: "AppbaseAnalytics", package: "appbase-swift")
+```
+
+Commit the consuming app's `Package.resolved` and upgrade deliberately. SDK package versions are independent of the collection wire contract. [Source and release history](https://github.com/appbasehq/appbase-swift) are public; no third-party runtime package is required.
+
+Physical-device behavior, the consuming app's merged App Store privacy report, and real Apple/RevenueCat sandbox purchases require validation in that app. Host tests, simulator checks and SDK publication do not establish those results.
 
 ## Setup
 
@@ -136,4 +152,4 @@ Feedback is explicit user contact independent of analytics consent. Disabled col
 - The SDK's file format is native-specific. Installing Swift alongside a React Native integration does not automatically migrate its AsyncStorage state.
 - `PrivacyInfo.xcprivacy` is bundled with the library resource target. It describes the SDK's identifiers, product interactions, purchase callbacks and optional feedback. The app must review the merged privacy report and its own property collection before distribution. No advertising IDs or cross-app tracking are used by this SDK.
 
-A published SDK-only export should contain the package/library and relevant native tests, README, privacy resource and license. Monorepo conformance fixtures must be included through the release workflow or run in the monorepo before export; do not treat their absence in an export as a passing conformance run.
+The SDK-only release contains the library, package manifest, README, privacy resource and license. Its standalone CI builds macOS and iOS simulator targets. Shared conformance fixtures, native behavioral tests, HTTP/PostgreSQL checks and lab applications remain in the private source monorepo and run there before release; their omission from this distribution is not a passing test result.

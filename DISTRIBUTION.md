@@ -1,10 +1,10 @@
 # Swift SDK distribution snapshot
 
-This SDK-only tree was reproducibly exported from Appbase's private source monorepo using `scripts/export-swift-repository.mjs 0.1.0-dev`. The private monorepo remains the source of truth for the SDK, canonical contracts, generated constants and cross-SDK acceptance. Make coordinated changes there and regenerate the export.
+This SDK-only tree was reproducibly exported from Appbase's private source monorepo using `scripts/export-swift-repository.mjs 0.1.0`. The private monorepo remains the source of truth for the SDK, canonical contracts, generated constants and cross-SDK acceptance. Make coordinated changes there and regenerate the export.
 
-Candidate version: `0.1.0-dev`. Candidate archive and package checksums are recorded in the export evidence beside this repository.
+Candidate version: `0.1.0`. Candidate archive and package checksums are recorded in the export evidence beside this repository.
 
-The package README is copied unchanged. Development/unpublished installation guidance remains in force until a real public repository and immutable release tag have been published and verified through a fresh remote consumer. Creating this local export or its local verification tag does not publish a release.
+The package README is copied unchanged. This exporter prepares source only. A versioned release exists only after the public repository has an immutable semantic-version tag that is verified through a fresh remote consumer. Local export tags are verification fixtures, not publication.
 
 Public repository metadata was verified at export time: [https://github.com/appbasehq/appbase-swift](https://github.com/appbasehq/appbase-swift). This export does not configure a Git remote or upload anything.
 
