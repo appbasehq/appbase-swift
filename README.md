@@ -2,14 +2,14 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-## Install 0.1.0
+## Install 0.2.0
 
-In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.1.0**. Add the `AppbaseAnalytics` product to your app target.
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.2.0**. Add the `AppbaseAnalytics` product to your app target.
 
 For a Swift package, add this dependency and reference its library product from your target:
 
 ```swift
-.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.1.0")
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.2.0")
 ```
 
 ```swift
@@ -153,3 +153,15 @@ Feedback is explicit user contact independent of analytics consent. Disabled col
 - `PrivacyInfo.xcprivacy` is bundled with the library resource target. It describes the SDK's identifiers, product interactions, purchase callbacks and optional feedback. The app must review the merged privacy report and its own property collection before distribution. No advertising IDs or cross-app tracking are used by this SDK.
 
 The SDK-only release contains the library, package manifest, README, privacy resource and license. Its standalone CI builds macOS and iOS simulator targets. Shared conformance fixtures, native behavioral tests, HTTP/PostgreSQL checks and lab applications remain in the private source monorepo and run there before release; their omission from this distribution is not a passing test result.
+
+## App-reported first use
+
+`markNewUser()` is available starting with React Native 0.3.0 and Swift 0.2.0. Upgrade deliberately before using this method.
+
+```
+await analytics.markNewUser()
+```
+
+Call only in the host app's genuinely first-time entry path, before onboarding completion. The app/agent owns that decision; Appbase makes no RevenueCat or auth lookup. Automatic `app_first_open` remains first seen, including existing users receiving the SDK for the first time. Onboarding visibility, replays, updates, reinstall and absence of a subscription do not prove newness. Without reliable evidence, omit the signal.
+
+The helper atomically queues `app_new_user` and remembers it for the current anonymous identity across restarts and identify. Reset clears the flag but never marks anyone automatically; linked accounts deduplicate in reports. True means locally recorded/already recorded; false means not recorded. Queue/storage failures allow retry in the same genuine first-time context. Opt-out drops queued events without manufacturing a new signal when enabled again. The timestamp is actual call time, never historical backfill. See [the integration guide](https://appbase.so/docs/first-use.md) for placement, report semantics and acceptance cases.

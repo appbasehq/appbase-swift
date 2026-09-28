@@ -11,6 +11,7 @@ struct SDKState: Codable, Sendable {
   var anonymousId: String
   var userId: String?
   var enabled = true
+  var newUserMarked: Bool?
   var events: [AnalyticsEvent] = []
   var dropped = 0
   var onboarding: [String: SavedOnboarding] = [:]
@@ -279,6 +280,17 @@ public actor Analytics {
       try context.emit(name: name, properties: properties, into: &state)
     } ?? false
   }
+  /// Report the host app's genuine first-time entry. Never inferred from onboarding or billing.
+  /// True means recorded locally (or already recorded), not delivered.
+  @discardableResult
+  public nonisolated func markNewUser() async -> Bool {
+    await perform { state, context in
+      if state.newUserMarked == true { return true }
+      guard try context.emit(name: "app_new_user", properties: [:], into: &state) else { return false }
+      state.newUserMarked = true
+      return true
+    } ?? false
+  }
   @discardableResult
   public nonisolated func identify(_ userId: String) async -> Bool {
     await identifyIsolated(userId, occurredAt: isoTimestamp(options.now()))
@@ -319,6 +331,7 @@ public actor Analytics {
           throw AnalyticsError.invalidInput("generateId reused a retained identity UUID")
         }
         state.anonymousId = next
+        state.newUserMarked = nil
         state.userId = nil
         state.onboarding = [:]
         state.paywalls = [:]
