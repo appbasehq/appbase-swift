@@ -2,16 +2,14 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-The source targets **0.3.0** (release candidate). Installation below remains on verified published **0.2.0** until the new release is available.
+## Install 0.3.0
 
-## Install 0.2.0
-
-In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.2.0**. Add the `AppbaseAnalytics` product to your app target.
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.3.0**. Add the `AppbaseAnalytics` product to your app target.
 
 For a Swift package, add this dependency and reference its library product from your target:
 
 ```swift
-.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.2.0")
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.3.0")
 ```
 
 ```swift
@@ -164,4 +162,4 @@ The SDK-only release contains the library, package manifest, README, privacy res
 
 No dedicated SDK marker call is needed. Reuse an existing event such as `onboarding_started` with `flow_id`, or track an ordinary entry event. The server counts each resolved identity once, at its earliest matching occurrence across recorded history. A brand-new app can explicitly select automatic `app_first_open`; existing apps must audit returning-user and upgrade paths before choosing it. Completion/purchase events exclude people who dropped out earlier.
 
-The next SDK release removes `markNewUser()`. Remove calls when upgrading. Existing identities and queued schema-v1 events survive; keep the collection configuration and storage namespace. Older installed SDKs' `app_new_user` events are accepted as ordinary events but have no special acquisition meaning. Published versions listed above remain usable with server-side definitions without upgrading.
+Version 0.3.0 removes `markNewUser()`. Remove calls when upgrading. Existing identities and queued schema-v1 events survive; keep the collection configuration and storage namespace. Older installed SDKs' `app_new_user` events are accepted as ordinary events but have no special acquisition meaning. Older published SDKs also work with server-side definitions without upgrading.
