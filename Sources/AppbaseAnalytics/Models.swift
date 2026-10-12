@@ -60,6 +60,7 @@ public struct AnalyticsEvent: Codable, Equatable, Sendable {
   public var occurred_at: String
   public var platform: String
   public var app_version: String
+  public var runtime_environment: RuntimeEnvironment? = nil
   public var properties: Properties
   public var onboarding: OnboardingDefinition?
 }
@@ -103,12 +104,18 @@ public enum AnalyticsError: Error, Sendable, CustomStringConvertible {
     }
   }
 }
+public enum RuntimeEnvironment: String, Codable, Sendable {
+  case production, sandbox, development, unknown
+}
+
 public enum AnalyticsEnvironment: String, Codable, Sendable { case development, production }
 
 public struct AnalyticsOptions: Sendable {
   public var apiURL: URL
   public var collectionKey: String
   public var appVersion: String
+  /// Native distribution at capture; independent of the collection-key storage scope.
+  public var runtimeEnvironment: RuntimeEnvironment?
   public var appId: String?
   public var environment: AnalyticsEnvironment?
   /// iOS in production; test is available for controlled server integration fixtures.

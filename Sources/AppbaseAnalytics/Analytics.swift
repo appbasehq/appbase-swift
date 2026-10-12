@@ -49,7 +49,7 @@ struct EventContext: Sendable {
       AnalyticsEvent(
         event_id: id, installation_id: state.installationId, anonymous_id: state.anonymousId,
         user_id: state.userId, name: name, occurred_at: occurredAt, platform: options.platform,
-        app_version: options.appVersion, properties: properties, onboarding: onboarding))
+        app_version: options.appVersion, runtime_environment: options.runtimeEnvironment, properties: properties, onboarding: onboarding))
     return true
   }
 }
