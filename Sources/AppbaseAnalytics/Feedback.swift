@@ -38,6 +38,7 @@ private struct FeedbackSubmission: Encodable {
   let message: String
   let email: String?
   let platform: String
+  let runtime_environment: RuntimeEnvironment?
   let app_version: String
   let anonymous_id: String?
   let user_id: String?
@@ -63,7 +64,7 @@ extension Analytics {
     }
     let submission = FeedbackSubmission(
       id: id, message: message, email: email == "" ? nil : email, platform: options.platform,
-      app_version: options.appVersion, anonymous_id: state.enabled ? state.anonymousId : nil,
+      runtime_environment: options.runtimeEnvironment, app_version: options.appVersion, anonymous_id: state.enabled ? state.anonymousId : nil,
       user_id: state.enabled ? state.userId : nil)
     do {
       let response = try await sendWithTimeout(

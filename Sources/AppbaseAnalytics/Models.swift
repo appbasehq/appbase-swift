@@ -114,8 +114,10 @@ public struct AnalyticsOptions: Sendable {
   public var apiURL: URL
   public var collectionKey: String
   public var appVersion: String
-  /// Native distribution at capture; independent of the collection-key storage scope.
+  /// Build environment at capture. An explicit value overrides automatic detection.
   public var runtimeEnvironment: RuntimeEnvironment?
+  /// On iOS, detect Development, TestFlight (sandbox) or App Store when runtimeEnvironment is nil.
+  public var automaticRuntimeEnvironment: Bool = true
   public var appId: String?
   public var environment: AnalyticsEnvironment?
   /// iOS in production; test is available for controlled server integration fixtures.
@@ -144,6 +146,20 @@ func encoded<T: Encodable>(_ value: T) throws -> Data {
 }
 func matches(_ value: String, _ pattern: String) -> Bool {
   value.range(of: pattern, options: .regularExpression) == value.startIndex..<value.endIndex
+}
+/// Plain HTTP is accepted only for loopback and private-network development servers.
+func localHost(_ host: String) -> Bool {
+  let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+  if host == "localhost" || host.hasSuffix(".localhost") || host.hasSuffix(".local") || host == "::1"
+  {
+    return true
+  }
+  let parts = host.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+  guard parts.count == 4, parts.allSatisfy({ $0 != nil && $0! <= 255 }),
+    host.allSatisfy({ $0.isNumber || $0 == "." })
+  else { return false }
+  let a = parts[0]!, b = parts[1]!
+  return a == 127 || a == 10 || (a == 172 && (16...31).contains(b)) || (a == 192 && b == 168)
 }
 func validUUID(_ value: String) -> Bool {
   matches(value, "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")

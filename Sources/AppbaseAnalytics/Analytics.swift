@@ -125,8 +125,18 @@ public actor Analytics {
     else {
       throw AnalyticsError.configuration("Legacy keys require appId and environment")
     }
-    guard environment != .production || options.apiURL.scheme?.lowercased() == "https" else {
-      throw AnalyticsError.configuration("Production analytics requires HTTPS")
+    guard environment != .production || options.apiURL.scheme?.lowercased() == "https"
+      || localHost(options.apiURL.host ?? "")
+    else {
+      throw AnalyticsError.configuration(
+        "Production analytics requires HTTPS outside local development hosts")
+    }
+    if options.runtimeEnvironment == nil, options.automaticRuntimeEnvironment,
+      options.platform == "ios"
+    {
+      // Bounded; failures record Unknown, which reports count as Production.
+      options.runtimeEnvironment =
+        RuntimeEnvironment(rawValue: await AppbaseRuntimeEnvironment.detect()) ?? .unknown
     }
     let storage = try options.storage ?? FileAnalyticsStorage()
     let key = "mobile-analytics:v1:\(app):\(environment.rawValue)"

@@ -2,14 +2,14 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-## Install 0.4.0
+## Install 0.5.0
 
-In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.4.0**. Add the `AppbaseAnalytics` product to your app target.
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.5.0**. Add the `AppbaseAnalytics` product to your app target.
 
 For a Swift package, add this dependency and reference its library product from your target:
 
 ```swift
-.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.4.0")
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.5.0")
 ```
 
 ```swift
@@ -22,7 +22,7 @@ Physical-device behavior, the consuming app's merged App Store privacy report, a
 
 ## Setup
 
-Add the `AppbaseAnalytics` library product to your app target. Create one instance for each app/environment and keep it for the app lifetime:
+Add the `AppbaseAnalytics` library product to your app target. Create one instance for the app and keep it for the app lifetime:
 
 ```swift
 import Foundation
@@ -44,19 +44,15 @@ await analytics.track("workout_completed", properties: [
 ])
 ```
 
-New collection keys contain the app/environment namespace; legacy keys also require `options.appId` and `options.environment`. A production namespace requires HTTPS. Collection keys permit writes only; never place reporting, account, InsForge service or RevenueCat secret credentials in this SDK. Explicitly choose your environment instead of inferring production from a Release/TestFlight build.
+Each app has one collection key for every build; it contains the app ID and storage namespace. Legacy keys also require `options.appId` and `options.environment`. API URLs require HTTPS except loopback and private-network development hosts (`localhost`, `*.local`, `127.0.0.1`, `10.x`, `172.16–31.x`, `192.168.x`). Collection keys permit writes only; never place reporting, account, InsForge service or RevenueCat secret credentials in this SDK.
 
 Creation throws when configuration/storage is unusable. Do not silently delete corrupt state or manufacture a replacement identity; resolve the error with diagnostics and an explicit migration/recovery decision. File storage refuses competing owners of the same namespace. If you inject custom storage, you must ensure one live writer per namespace yourself.
 
-## Native runtime environment
+## Automatic build environment
 
-Before creating the client, automatically detect the native distribution signal:
+On iOS, `Analytics.create` labels every event with the build it came from: simulators, debug builds and development signing are `development` (Development in the dashboard); TestFlight and App Review are `sandbox` (TestFlight); the App Store is `production`. It uses Apple's verified `AppTransaction.shared.environment` on iOS 16+, bounded to two seconds. iOS 15, unverified or unavailable lookups record `unknown`, which reports count as Production. It never calls `refresh()` or asks for permissions or account authentication.
 
-```swift
-options.runtimeEnvironment = RuntimeEnvironment(rawValue: await AppbaseRuntimeEnvironment.detect())
-```
-
-The helper uses verified `AppTransaction.shared.environment` on iOS 16+ and returns Unknown on older/unavailable/unverified StoreKit. It recognizes simulator/debug/development signing without Apple requests and bounds StoreKit lookup to two seconds. It never calls `refresh()` or asks for permissions/account authentication. App Store events are Production; TestFlight and App Review share Sandbox; Xcode StoreKit Testing is Development. This labels newly captured events independently of the collection-key dataset. Old queues retain their original field or absence, and identities/storage scopes do not change. Environment metadata cannot verify billing or identify an Apple reviewer.
+Set `options.runtimeEnvironment` to override detection (for example an internal ad hoc build), or `options.automaticRuntimeEnvironment = false` to omit it. `AppbaseRuntimeEnvironment.detect()` remains public. Old queues retain their original field or absence, and identities/storage scopes do not change. Environment metadata cannot verify billing or identify an Apple reviewer.
 
 ## Delivery, errors and consent
 
@@ -168,8 +164,8 @@ The SDK-only release contains the library, package manifest, README, privacy res
 
 ## Configure new users
 
-**Required for SDK acquisition and retention:** in App setup, choose one new-user event and optional exact property filters for each environment. Agents can read, preview and save it using app-scoped setup access. Use the [definition guide](https://appbase.so/docs/first-use.md) for the API, selection examples and acceptance checklist.
+**Required for SDK acquisition and retention:** in App setup, choose one new-user event and optional exact property filters for the app. Agents can read, preview and save it using app-scoped setup access. Use the [definition guide](https://appbase.so/docs/first-use.md) for the API, selection examples and acceptance checklist.
 
 No dedicated SDK marker call is needed. Reuse an existing event such as `onboarding_started` with `flow_id`, or track an ordinary entry event. The server counts each resolved identity once, at its earliest matching occurrence across recorded history. A brand-new app can explicitly select automatic `app_first_open`; existing apps must audit returning-user and upgrade paths before choosing it. Completion/purchase events exclude people who dropped out earlier.
 
-Version 0.4.0 removes `markNewUser()`. Remove calls when upgrading. Existing identities and queued schema-v1 events survive; keep the collection configuration and storage namespace. Older installed SDKs' `app_new_user` events are accepted as ordinary events but have no special acquisition meaning. Older published SDKs also work with server-side definitions without upgrading.
+Version 0.3.0 removed `markNewUser()`. Remove calls when upgrading from an older version. Existing identities and queued schema-v1 events survive; keep the collection configuration and storage namespace. Older installed SDKs' `app_new_user` events are accepted as ordinary events but have no special acquisition meaning. Older published SDKs also work with server-side definitions without upgrading.
