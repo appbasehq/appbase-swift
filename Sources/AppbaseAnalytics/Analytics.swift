@@ -90,6 +90,7 @@ public actor Analytics {
     var options = supplied
     guard options.appVersion.utf16.count >= 1,
       options.appVersion.utf16.count <= MobileContract.appVersionLength,
+      storableText(options.appVersion),
       ["ios", "android", "test"].contains(options.platform),
       options.flushInterval.isFinite, options.flushInterval >= 0,
       options.flushInterval <= Double(MobileContract.maxFlushIntervalMs) / 1000,
@@ -294,24 +295,27 @@ public actor Analytics {
     await identifyIsolated(userId, occurredAt: isoTimestamp(options.now()))
   }
   private func identifyIsolated(_ userId: String, occurredAt: String) -> Bool {
-    guard !disposed, !userId.isEmpty, userId.utf16.count <= MobileContract.userIdLength else {
+    guard !disposed, !userId.isEmpty, userId.utf16.count <= MobileContract.userIdLength,
+      storableText(userId)
+    else {
       diagnose(.invalidEvent, "Use an opaque user ID of 1–200 characters")
       return false
     }
-    guard state.userId == nil || wireEqual(state.userId!, userId) else {
-      diagnose(.invalidEvent, "Call reset before switching accounts")
-      return false
-    }
-    let changed = state.userId.map { !wireEqual($0, userId) } ?? true
+    // Repeating the current account (for example on every launch) is not a new link.
+    if let current = state.userId, wireEqual(current, userId) { return true }
+    // Another account on this device: start a new anonymous identity first, so none of the new
+    // person's activity, workflows or purchases are credited to the previous account.
+    let switching = state.userId != nil
     do {
       try transaction(occurredAt: occurredAt) { state, context in
-        if changed { state.revenuecatIdentity = nil }
+        if switching { try Self.startAnonymousIdentity(&state, context) }
+        state.revenuecatIdentity = nil
         state.userId = userId
         if state.enabled {
           try context.emit(name: "identity_linked", properties: [:], into: &state)
         }
       }
-      if changed { identityRevision &+= 1 }
+      identityRevision &+= 1
       return true
     } catch {
       report(error)
@@ -322,25 +326,29 @@ public actor Analytics {
   public func reset() -> Bool {
     guard !disposed else { return false }
     do {
-      try transaction { state, context in
-        let next = try context.nextId()
-        let occupied = [state.installationId, state.anonymousId] + state.events.map(\.anonymous_id)
-        guard !occupied.contains(where: { $0.lowercased() == next.lowercased() }) else {
-          throw AnalyticsError.invalidInput("generateId reused a retained identity UUID")
-        }
-        state.anonymousId = next
-        state.userId = nil
-        state.onboarding = [:]
-        state.paywalls = [:]
-        state.paywallOrder = []
-        state.revenuecatIdentity = nil
-      }
+      try transaction { state, context in try Self.startAnonymousIdentity(&state, context) }
       identityRevision &+= 1
       return true
     } catch {
       report(error)
       return false
     }
+  }
+  /// New anonymous identity without per-person workflow state; the caller's transaction saves it.
+  private static func startAnonymousIdentity(_ state: inout SDKState, _ context: EventContext)
+    throws
+  {
+    let next = try context.nextId()
+    let occupied = [state.installationId, state.anonymousId] + state.events.map(\.anonymous_id)
+    guard !occupied.contains(where: { $0.lowercased() == next.lowercased() }) else {
+      throw AnalyticsError.invalidInput("generateId reused a retained identity UUID")
+    }
+    state.anonymousId = next
+    state.userId = nil
+    state.onboarding = [:]
+    state.paywalls = [:]
+    state.paywallOrder = []
+    state.revenuecatIdentity = nil
   }
   @discardableResult
   public func setEnabled(_ enabled: Bool) -> Bool {
@@ -467,8 +475,12 @@ public actor Analytics {
   func request(path: String, body: Data) -> AnalyticsRequest {
     AnalyticsRequest(
       url: options.apiURL.appendingPathComponent(path),
-      headers: ["Content-Type": "application/json", "X-API-Key": options.collectionKey], body: body,
-      timeout: options.requestTimeout)
+      // X-Appbase-Sent-At is the device clock at send time; the server corrects event times from
+      // a wrong device clock with it.
+      headers: [
+        "Content-Type": "application/json", "X-API-Key": options.collectionKey,
+        "X-Appbase-Sent-At": isoTimestamp(options.now()),
+      ], body: body, timeout: options.requestTimeout)
   }
   private func backoff(minimum: TimeInterval = 0) {
     failures += 1

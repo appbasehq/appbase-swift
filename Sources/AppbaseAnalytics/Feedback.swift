@@ -53,9 +53,9 @@ extension Analytics {
     let message = WorkflowValidation.trim(input.message)
     let email = input.email.map(WorkflowValidation.trim)
     guard validUUID(id), !message.isEmpty,
-      message.utf16.count <= MobileContract.feedbackMessageLength, !message.contains("\0"),
+      message.utf16.count <= MobileContract.feedbackMessageLength, storableText(message),
       email == nil || email == ""
-        || (email!.utf16.count <= MobileContract.feedbackEmailLength
+        || (email!.utf16.count <= MobileContract.feedbackEmailLength && storableText(email!)
           && matches(email!, "^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$"))
     else {
       throw FeedbackError(

@@ -176,16 +176,25 @@ func parsedTimestamp(_ value: String) -> Date? {
   formatter.formatOptions = [.withInternetDateTime]
   return formatter.date(from: value)
 }
+/// The server stores text in PostgreSQL, which rejects NUL. Swift strings cannot hold unpaired
+/// surrogates, so scalar NUL (even inside a grapheme cluster) is the only case to reject here.
+func storableText(_ value: String) -> Bool { !value.unicodeScalars.contains { $0.value == 0 } }
+
 func validProperties(_ properties: Properties) -> Bool {
   guard properties.count <= MobileContract.propertyCount else { return false }
   for (key, value) in properties {
-    guard !key.isEmpty, key.utf16.count <= MobileContract.propertyKeyLength else { return false }
+    guard !key.isEmpty, key.utf16.count <= MobileContract.propertyKeyLength, storableText(key)
+    else { return false }
     switch value {
     case .string(let string):
-      if string.utf16.count > MobileContract.propertyStringLength { return false }
+      if string.utf16.count > MobileContract.propertyStringLength || !storableText(string) {
+        return false
+      }
     case .strings(let strings):
       if strings.count > MobileContract.propertyArrayLength
-        || strings.contains(where: { $0.utf16.count > MobileContract.propertyArrayStringLength })
+        || strings.contains(where: {
+          $0.utf16.count > MobileContract.propertyArrayStringLength || !storableText($0)
+        })
       {
         return false
       }

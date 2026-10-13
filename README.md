@@ -2,14 +2,14 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-## Install 0.5.0
+## Install 0.6.0
 
-In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.5.0**. Add the `AppbaseAnalytics` product to your app target.
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.6.0**. Add the `AppbaseAnalytics` product to your app target.
 
 For a Swift package, add this dependency and reference its library product from your target:
 
 ```swift
-.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.5.0")
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.6.0")
 ```
 
 ```swift
@@ -79,7 +79,7 @@ let saved = await analytics.setEnabled(false)
 await analytics.setEnabled(true)
 ```
 
-`identify` refuses switching identified users without `reset`. Reset preserves older queued events with their original identity and changes the current anonymous identity. Identity changes must be awaited in account-transition order. Changing identity can succeed even if the separate `identity_linked` event hits a full queue; the diagnostic reports that dropped event. Opt-out persists across launch. Automatic iOS tracking emits `app_first_open` once per namespace and `app_active` at active initialization/foreground transitions. Do not duplicate these manually. Background entry attempts a bounded flush; durable storage, rather than the final network request, preserves events during termination.
+`identify` with a different user while another is identified resets first (new anonymous identity, cleared onboarding/paywall/RevenueCat state), so nothing is credited to the previous account; repeating the current user is a no-op. Still call `reset()` on logout. Reset preserves older queued events with their original identity and changes the current anonymous identity. Identity changes must be awaited in account-transition order. Changing identity can succeed even if the separate `identity_linked` event hits a full queue; the diagnostic reports that dropped event. Opt-out persists across launch. Automatic iOS tracking emits `app_first_open` once per namespace and `app_active` at active initialization and each return from the background (not Control Center, alerts or the purchase sheet). Do not duplicate these manually. Background entry attempts a bounded flush; durable storage, rather than the final network request, preserves events during termination.
 
 There is one active delivery loop. Valid partial acknowledgements remove only their named events. Unknown, duplicated, contradictory, malformed or empty acknowledgements retain the batch. Network errors and 429/5xx retry with backoff and bounded Retry-After support; other HTTP failures block delivery until `resume`. Redirects are refused. Cancellation cannot retract a request that a server has already received.
 
@@ -99,6 +99,8 @@ let attemptId = await onboarding.start() // Resumes after an app restart.
 await onboarding.step("intro")
 await onboarding.step("goal")
 await onboarding.answer("goal", selection: "habit")
+// Right after recording the onboarding paywall view (or after the last screen
+// when there is no paywall). Never wait for a purchase.
 await onboarding.complete()
 ```
 
@@ -112,6 +114,7 @@ let view = await wall.view(
     placement: "after_onboarding", accessState: .inactive,
     productIds: ["premium.monthly"], onboarding: onboarding
 )
+await onboarding.complete() // Reaching the onboarding paywall completes onboarding.
 let purchase = await view?.purchaseStarted(PaywallProduct(productId: "premium.monthly"))
 // After the purchasing SDK callback, report its actual outcome and exact store transaction ID:
 await purchase?.finished(PurchaseResult(result: .pending))

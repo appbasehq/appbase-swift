@@ -371,6 +371,7 @@ enum WorkflowValidation {
 
   static func opaque(_ value: String) -> Bool {
     !value.isEmpty && value.utf16.count <= MobileContract.storeIdLength && trimmed(value)
+      && storableText(value)
   }
 
   static func definition(_ options: OnboardingOptions) throws -> OnboardingDefinition {
@@ -381,12 +382,12 @@ enum WorkflowValidation {
     for q in options.questions {
       try check(
         label(q.id) && options.steps.contains(q.stepId) && !q.title.isEmpty && trimmed(q.title)
-          && q.title.utf16.count <= MobileContract.questionTitleLength
+          && q.title.utf16.count <= MobileContract.questionTitleLength && storableText(q.title)
           && (1...MobileContract.questionOptions).contains(q.options.count)
           && Set(q.options.map(\.id)).count == q.options.count
           && q.options.allSatisfy {
             label($0.id) && !$0.label.isEmpty && trimmed($0.label)
-              && $0.label.utf16.count <= MobileContract.optionLabelLength
+              && $0.label.utf16.count <= MobileContract.optionLabelLength && storableText($0.label)
           },
         "Use a declared step, a question title and 1–20 uniquely identified, labeled options")
     }

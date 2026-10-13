@@ -5,6 +5,8 @@
   final class AnalyticsLifecycle {
     private let analytics: Analytics
     private var observations: [NSObjectProtocol] = []
+    /// Cleared only when the app reaches the background: Control Center, alerts, Face ID or the
+    /// purchase sheet resign active without leaving the app and are not new opens.
     private var active = false
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     init(analytics: Analytics) { self.analytics = analytics }
@@ -17,7 +19,6 @@
           await self.analytics.flush()
         }
       }
-      observe(UIApplication.willResignActiveNotification) { [weak self] in self?.active = false }
       observe(UIApplication.didEnterBackgroundNotification) { [weak self] in self?.background() }
       if UIApplication.shared.applicationState == .active {
         active = true
