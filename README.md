@@ -2,14 +2,14 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-## Install 0.6.0
+## Install 0.7.0
 
-In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.6.0**. Add the `AppbaseAnalytics` product to your app target.
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.7.0**. Add the `AppbaseAnalytics` product to your app target.
 
 For a Swift package, add this dependency and reference its library product from your target:
 
 ```swift
-.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.6.0")
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.7.0")
 ```
 
 ```swift
@@ -135,6 +135,35 @@ await analytics.linkRevenueCatUser(projectId: "your-revenuecat-project-id") {
 The helper is independent of the RevenueCat package. Call on initialized/restored sessions, after its configuration/login and after analytics identity changes, for existing subscribers as well as new customers. A lookup that crosses an analytics account change is discarded. Identity evidence and client purchase callbacks never establish verified revenue; the existing server-side RevenueCat connection/webhooks verify billing. Never invent a transaction ID when none is available.
 
 The link can be delivered before or after a history import; reports match stored evidence once both are available. Do not gate it on a purchase or import completion. An existing customer's first Appbase observation does not establish acquisition; audit the configured new-user event. See [existing apps and import order](https://appbase.so/docs/revenuecat-setup.md#existing-apps-link-users-before-or-after-importing).
+
+### RevenueCat integration (recommended)
+
+If the app uses RevenueCat, connect it once after `Purchases.configure`. It keeps RevenueCat's customer linked to the analytics identity, reports access for paywall views and records purchases. It calls only the public APIs above, so it records exactly the events you would record by hand. Appbase has no RevenueCat dependency; add one line so it can read RevenueCat's transaction ID:
+
+```swift
+import RevenueCat
+import AppbaseAnalytics
+
+extension StoreTransaction: @retroactive RevenueCatStoreTransaction {}
+
+let revenueCat = try analytics.connectRevenueCat(
+    projectId: "your-revenuecat-project-id", entitlement: "premium" // entitlement is optional
+) { Purchases.shared.appUserID }
+revenueCat.follow(Purchases.shared.customerInfoStream) { Set($0.entitlements.active.keys) }
+
+let view = await wall.view(
+    placement: "settings", accessState: revenueCat.accessState, productIds: productIds)
+// Same result, or the same error, as Purchases.shared.purchase(package:):
+let result = try await revenueCat.purchase(view, productId: package.storeProduct.productIdentifier) {
+    try await Purchases.shared.purchase(package: package)
+}
+```
+
+- **Identity:** linked on connect, after every followed RevenueCat customer update (login, logout, restore, purchase) and before each purchase. After `analytics.identify` or `reset` without a RevenueCat change, call `await revenueCat.sync()`.
+- **`accessState`:** `.unknown` until RevenueCat reports customer info, then `.active` or `.inactive`.
+- **`purchase`:** records the attempt without waiting, so checkout is never delayed, and returns RevenueCat's result or rethrows its error unchanged. The outcome is succeeded with the store transaction ID, cancelled (`userCancelled`, or code `1`), pending (Ask to Buy, code `20`) or failed with RevenueCat's error code. A `nil` view still runs the purchase and records nothing.
+- Keep calling `view.productSelected` and `view.dismissed` yourself; a restore is not a purchase attempt.
+- `settled()` waits until recorded links and outcomes are stored (useful in tests); `stop()` stops following RevenueCat.
 
 ## Feedback
 
