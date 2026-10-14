@@ -59,7 +59,10 @@ struct EventContext: Sendable {
 public actor Analytics {
   var state: SDKState
   var registeredDefinitions: [String: OnboardingDefinition] = [:]
-  let options: AnalyticsOptions
+  /// Fixed after creation, except an Unknown runtime that a background retry later detects.
+  var options: AnalyticsOptions
+  /// Read before entering the actor, so occurrence time is taken at the call.
+  nonisolated let clock: @Sendable () -> Date
   let storage: any AnalyticsStorage
   let storageKey: String
   private var fileLease: FileStorageLease?
@@ -72,6 +75,7 @@ public actor Analytics {
   private var deliveryGeneration: UInt64 = 0
   private var inFlight: Task<Void, Never>?
   private var timer: Task<Void, Never>?
+  private var runtimeRetry: Task<Void, Never>?
   #if canImport(UIKit)
     private var lifecycle: AnalyticsLifecycle?
   #endif
@@ -81,6 +85,7 @@ public actor Analytics {
     fileLease: FileStorageLease?
   ) {
     self.options = options
+    self.clock = options.now
     self.storage = storage
     self.storageKey = key
     self.state = state
@@ -132,12 +137,14 @@ public actor Analytics {
       throw AnalyticsError.configuration(
         "Production analytics requires HTTPS outside local development hosts")
     }
+    var retryDetection = false
     if options.runtimeEnvironment == nil, options.automaticRuntimeEnvironment,
       options.platform == "ios"
     {
       // Bounded; failures record Unknown, which reports count as Production.
       options.runtimeEnvironment =
-        RuntimeEnvironment(rawValue: await AppbaseRuntimeEnvironment.detect()) ?? .unknown
+        RuntimeEnvironment(rawValue: await options.runtimeDetector()) ?? .unknown
+      retryDetection = options.runtimeEnvironment == .unknown
     }
     let storage = try options.storage ?? FileAnalyticsStorage()
     let key = "mobile-analytics:v1:\(app):\(environment.rawValue)"
@@ -209,10 +216,25 @@ public actor Analytics {
     }
     let client = Analytics(
       options: options, storage: storage, key: key, state: initial, fileLease: fileLease)
-    await client.start()
+    await client.start(retryDetection: retryDetection)
     return client
   }
-  private func start() async {
+  private func start(retryDetection: Bool) async {
+    if retryDetection {
+      let detector = options.runtimeDetector, delays = options.runtimeRetryDelays
+      runtimeRetry = Task { [weak self] in
+        for delay in delays {
+          do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch {
+            return
+          }
+          let value = RuntimeEnvironment(rawValue: await detector()) ?? .unknown
+          if value != .unknown {
+            await self?.adoptRuntime(value)
+            return
+          }
+        }
+      }
+    }
     if options.flushInterval > 0 {
       let interval = options.flushInterval
       timer = Task { [weak self] in
@@ -239,7 +261,7 @@ public actor Analytics {
   nonisolated func perform<T: Sendable>(
     _ operation: @Sendable (inout SDKState, EventContext) throws -> T
   ) async -> T? {
-    let occurredAt = isoTimestamp(options.now())
+    let occurredAt = isoTimestamp(clock())
     return await performIsolated(operation, occurredAt: occurredAt)
   }
   func performCurrent<T: Sendable>(
@@ -321,6 +343,39 @@ public actor Analytics {
       report(error)
       return false
     }
+  }
+  /// Shows this email and name for the identified account in the dashboard, kept apart from
+  /// events. Replaces the previous profile; nil or blank fields are cleared. Requires `identify`
+  /// first and is dropped with a diagnostic otherwise.
+  @discardableResult
+  public nonisolated func setProfile(email: String?, name: String?) async -> Bool {
+    let email = email.map(WorkflowValidation.trim).flatMap { $0.isEmpty ? nil : $0 }
+    let name = name.map(WorkflowValidation.trim).flatMap { $0.isEmpty ? nil : $0 }
+    let validEmail =
+      email.map {
+        $0.utf16.count <= MobileContract.feedbackEmailLength && storableText($0)
+          && matches($0, "^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$")
+      } ?? true
+    let validName =
+      name.map {
+        $0.utf16.count <= MobileContract.profileNameLength && storableText($0)
+          && !$0.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7f }
+      } ?? true
+    guard validEmail, validName else {
+      await diagnose(
+        .invalidEvent, "Use a valid email of up to 254 characters and a name of up to 200")
+      return false
+    }
+    return await perform { state, context in
+      guard state.userId != nil else {
+        throw AnalyticsError.invalidInput("Identify the user before setting a profile")
+      }
+      return try context.emit(
+        name: "profile_updated",
+        properties: [
+          "email": email.map { .string($0) } ?? .null, "name": name.map { .string($0) } ?? .null,
+        ], into: &state)
+    } ?? false
   }
   @discardableResult
   public func reset() -> Bool {
@@ -490,9 +545,17 @@ public actor Analytics {
       ))
     diagnose(.network, "Delivery deferred; events remain in persistent storage")
   }
+  /// Later events take the detected build; earlier events keep Unknown, and reports give them
+  /// the install's nearest detected build. Captured events are never retagged.
+  private func adoptRuntime(_ value: RuntimeEnvironment) {
+    guard !disposed, options.runtimeEnvironment == .unknown else { return }
+    options.runtimeEnvironment = value
+  }
   public func dispose() async {
     guard !disposed else { return }
     disposed = true
+    runtimeRetry?.cancel()
+    runtimeRetry = nil
     identityRevision &+= 1
     deliveryGeneration &+= 1
     timer?.cancel()

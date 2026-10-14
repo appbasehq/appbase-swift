@@ -132,6 +132,10 @@ public struct AnalyticsOptions: Sendable {
   public var batchSize: Int = MobileContract.defaultBatchSize
   public var requestTimeout: TimeInterval = Double(MobileContract.defaultRequestTimeoutMs) / 1000
   public var automaticLifecycle: Bool = true
+  /// Automatic detection, replaceable in tests. Bounded to two seconds per call.
+  var runtimeDetector: @Sendable () async -> String = { await AppbaseRuntimeEnvironment.detect() }
+  /// After an Unknown detection, ask again in the background; StoreKit can answer late.
+  var runtimeRetryDelays: [TimeInterval] = [5, 30, 120, 600]
   public init(apiURL: URL, collectionKey: String, appVersion: String) {
     self.apiURL = apiURL
     self.collectionKey = collectionKey

@@ -38,6 +38,7 @@ enum MobileContract {
     static let retryAfterMaximumMs = 86400000
     static let feedbackMessageLength = 4000
     static let feedbackEmailLength = 254
+    static let profileNameLength = 200
     static let feedbackRequestBytes = 24576
     static let maximumSafeInteger = 9007199254740991
 }

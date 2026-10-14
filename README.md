@@ -2,14 +2,14 @@
 
 Native iOS analytics with a durable offline outbox, onboarding, paywalls, RevenueCat identity evidence and explicit feedback. Swift 6, iOS 15+. macOS 12+ is supported for host testing and tools; automatic application lifecycle tracking is iOS-only. No third-party runtime dependencies.
 
-## Install 0.7.0
+## Install 0.8.0
 
-In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.7.0**. Add the `AppbaseAnalytics` product to your app target.
+In Xcode, choose **File → Add Package Dependencies**, enter `https://github.com/appbasehq/appbase-swift.git`, and select **Exact Version: 0.8.0**. Add the `AppbaseAnalytics` product to your app target.
 
 For a Swift package, add this dependency and reference its library product from your target:
 
 ```swift
-.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.7.0")
+.package(url: "https://github.com/appbasehq/appbase-swift.git", exact: "0.8.0")
 ```
 
 ```swift
@@ -50,7 +50,7 @@ Creation throws when configuration/storage is unusable. Do not silently delete c
 
 ## Automatic build environment
 
-On iOS, `Analytics.create` labels every event with the build it came from: simulators, debug builds and development signing are `development` (Development in the dashboard); TestFlight and App Review are `sandbox` (TestFlight); the App Store is `production`. It uses Apple's verified `AppTransaction.shared.environment` on iOS 16+, bounded to two seconds. iOS 15, unverified or unavailable lookups record `unknown`, which reports count as Production. It never calls `refresh()` or asks for permissions or account authentication.
+On iOS, `Analytics.create` labels every event with the build it came from: simulators, debug builds and development signing are `development` (Development in the dashboard); TestFlight and App Review are `sandbox` (TestFlight); the App Store is `production`. It uses Apple's verified `AppTransaction.shared.environment` on iOS 16+, bounded to two seconds. iOS 15, unverified or unavailable lookups record `unknown`, which reports count as Production. After an `unknown` result, it asks again in the background about 5 seconds, 30 seconds, 2 minutes and 10 minutes later; later events carry the first detected answer, and reports give the install's earlier events that build. It never calls `refresh()` or asks for permissions or account authentication.
 
 Set `options.runtimeEnvironment` to override detection (for example an internal ad hoc build), or `options.automaticRuntimeEnvironment = false` to omit it. `AppbaseRuntimeEnvironment.detect()` remains public. Old queues retain their original field or absence, and identities/storage scopes do not change. Environment metadata cannot verify billing or identify an Apple reviewer.
 
@@ -69,6 +69,8 @@ if status.blocked {
 }
 
 await analytics.identify("opaque-internal-user-id")
+// Optional: the dashboard shows this instead of the ID. nil clears a field.
+await analytics.setProfile(email: "sarah@example.com", name: "Sarah Chen")
 // Before switching to another account:
 await analytics.reset()
 await analytics.identify("another-opaque-user-id")
@@ -79,7 +81,7 @@ let saved = await analytics.setEnabled(false)
 await analytics.setEnabled(true)
 ```
 
-`identify` with a different user while another is identified resets first (new anonymous identity, cleared onboarding/paywall/RevenueCat state), so nothing is credited to the previous account; repeating the current user is a no-op. Still call `reset()` on logout. Reset preserves older queued events with their original identity and changes the current anonymous identity. Identity changes must be awaited in account-transition order. Changing identity can succeed even if the separate `identity_linked` event hits a full queue; the diagnostic reports that dropped event. Opt-out persists across launch. Automatic iOS tracking emits `app_first_open` once per namespace and `app_active` at active initialization and each return from the background (not Control Center, alerts or the purchase sheet). Do not duplicate these manually. Background entry attempts a bounded flush; durable storage, rather than the final network request, preserves events during termination.
+`identify` with a different user while another is identified resets first (new anonymous identity, cleared onboarding/paywall/RevenueCat state), so nothing is credited to the previous account; repeating the current user is a no-op. `setProfile` needs an identified user, is stored apart from events and replaces the previous profile. Still call `reset()` on logout, before RevenueCat `logOut()`. Identify with the permanent account ID after sign-up, sign-in and session restore, never an email, and do not identify guest or anonymous-auth accounts; see [apps with accounts](https://appbase.so/docs/agent-setup.md#apps-with-accounts). Reset preserves older queued events with their original identity and changes the current anonymous identity. Identity changes must be awaited in account-transition order. Changing identity can succeed even if the separate `identity_linked` event hits a full queue; the diagnostic reports that dropped event. Opt-out persists across launch. Automatic iOS tracking emits `app_first_open` once per namespace and `app_active` at active initialization and each return from the background (not Control Center, alerts or the purchase sheet). Do not duplicate these manually. Background entry attempts a bounded flush; durable storage, rather than the final network request, preserves events during termination.
 
 There is one active delivery loop. Valid partial acknowledgements remove only their named events. Unknown, duplicated, contradictory, malformed or empty acknowledgements retain the batch. Network errors and 429/5xx retry with backoff and bounded Retry-After support; other HTTP failures block delivery until `resume`. Redirects are refused. Cancellation cannot retract a request that a server has already received.
 
