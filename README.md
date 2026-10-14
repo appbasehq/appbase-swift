@@ -16,7 +16,7 @@ For a Swift package, add this dependency and reference its library product from 
 .product(name: "AppbaseAnalytics", package: "appbase-swift")
 ```
 
-Commit the consuming app's `Package.resolved` and upgrade deliberately. SDK package versions are independent of the collection wire contract. [Source and release history](https://github.com/appbasehq/appbase-swift) are public; no third-party runtime package is required.
+Commit the consuming app's `Package.resolved` and upgrade deliberately: what changed in each version, and what an upgrade needs, is in the [changelog](https://appbase.so/docs/swift-sdk-changelog.md) (also `CHANGELOG.md` in the package). SDK package versions are independent of the collection wire contract. [Source and release history](https://github.com/appbasehq/appbase-swift) are public; no third-party runtime package is required.
 
 Physical-device behavior, the consuming app's merged App Store privacy report, and real Apple/RevenueCat sandbox purchases require validation in that app. Host tests, simulator checks and SDK publication do not establish those results.
 

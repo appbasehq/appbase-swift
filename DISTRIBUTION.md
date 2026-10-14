@@ -10,7 +10,7 @@ Public repository metadata was verified at export time: [https://github.com/appb
 
 ## Export and verification scope
 
-The allowlist contains `Package.swift`, the library sources, privacy resource, README and license, plus this distribution note, a Git ignore file and standalone CI. Server code, lab apps, credentials and monorepo test fixtures are excluded. Machine-readable checksums and verification evidence are recorded beside this repository in the private export output.
+The allowlist contains `Package.swift`, the library sources, privacy resource, README, changelog and license, plus this distribution note, a Git ignore file and standalone CI. Server code, lab apps, credentials and monorepo test fixtures are excluded. Machine-readable checksums and verification evidence are recorded beside this repository in the private export output.
 
 The existing candidate packager verifies a clean local Git-tag consumer and native persistence/workflow APIs before export. The repository wrapper rechecks every candidate file and verifies this exact tree using a fresh external Swift Package Manager consumer and a generic iOS simulator build.
 
